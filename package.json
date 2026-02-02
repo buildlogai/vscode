@@ -2,7 +2,7 @@
   "name": "buildlog-recorder",
   "displayName": "Buildlog - Workflow Recipes",
   "description": "Capture AI coding workflows as replicable recipes. Record prompts, actions, and decisions. Share reproducible workflows that others can follow.",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "publisher": "buildlog",
   "repository": {
     "type": "git",
@@ -28,6 +28,15 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "chatParticipants": [
+      {
+        "id": "buildlog.recorder",
+        "fullName": "Buildlog Recorder",
+        "name": "buildlog",
+        "description": "Record your AI prompts and responses to a buildlog. Start a recording, then use @buildlog to auto-capture.",
+        "isSticky": false
+      }
+    ],
     "configuration": {
       "title": "Buildlog Recorder",
       "properties": {

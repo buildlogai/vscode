@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { RecordingSession } from './recorder';
 import { StatusBar } from './ui';
+import { registerChatParticipant } from './chat';
 import { 
   startRecording, 
   stopRecording, 
@@ -82,6 +83,9 @@ export function activate(context: vscode.ExtensionContext) {
       }
     }),
   ];
+
+  // Register chat participant for auto-capture
+  registerChatParticipant(context, () => session);
 
   // Add disposables to context
   context.subscriptions.push(
