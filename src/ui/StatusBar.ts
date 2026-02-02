@@ -74,10 +74,11 @@ export class StatusBar implements vscode.Disposable {
   private updateRecordingDisplay(): void {
     const duration = this.session.getDuration();
     const timeString = this.formatDuration(duration);
-    const eventCount = this.session.getEventCount();
+    const stepCount = this.session.getStepCount();
+    const promptCount = this.session.getPromptCount();
 
     this.statusBarItem.text = `$(circle-filled) REC ${timeString}`;
-    this.statusBarItem.tooltip = `Recording: ${this.session.getTitle()}\n${eventCount} events captured\nClick to stop`;
+    this.statusBarItem.tooltip = `Recording: ${this.session.getTitle()}\n${stepCount} steps (${promptCount} prompts)\nClick to stop`;
     this.statusBarItem.command = 'buildlog.stopRecording';
     this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
   }

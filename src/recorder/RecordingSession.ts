@@ -2,15 +2,22 @@ import * as vscode from 'vscode';
 import { v4 as uuidv4 } from '../utils';
 import { 
   BuildlogFile, 
-  BuildlogEvent, 
+  BuildlogStep, 
   BuildlogMetadata,
-  FileSnapshot,
-  PromptEventData,
-  ResponseEventData,
-  NoteEventData 
+  BuildlogOutcome,
+  PromptStep,
+  ActionStep,
+  TerminalStep,
+  NoteStep,
+  CheckpointStep,
+  ErrorStep,
+  NoteCategory,
+  TerminalOutcome,
+  OutcomeStatus,
+  BUILDLOG_VERSION,
+  detectEditor,
+  detectAIProvider,
 } from '../types';
-import { FileWatcher } from './FileWatcher';
-import { StateSnapshot } from './StateSnapshot';
 
 export type RecordingState = 'idle' | 'recording' | 'paused';
 
@@ -20,25 +27,31 @@ export interface RecordingSessionOptions {
 }
 
 /**
- * Manages a recording session
+ * Manages a recording session (v2 - slim workflow format)
+ * 
+ * Key change from v1: We no longer track file changes automatically.
+ * Instead, users manually add steps representing their workflow.
+ * The prompts are the artifact - code is ephemeral.
  */
 export class RecordingSession extends vscode.Disposable {
   private state: RecordingState = 'idle';
   private sessionId: string;
   private title: string = '';
   private startTime: Date | undefined;
-  private events: BuildlogEvent[] = [];
-  private initialSnapshots: FileSnapshot[] = [];
-  private fileWatcher: FileWatcher;
-  private stateSnapshot: StateSnapshot;
+  private steps: BuildlogStep[] = [];
+  private sequenceCounter: number = 0;
   private workspaceRoot: string;
   private workspaceName: string;
+  
+  // Track files for outcome summary
+  private filesCreated = new Set<string>();
+  private filesModified = new Set<string>();
 
   private readonly _onStateChange = new vscode.EventEmitter<RecordingState>();
   readonly onStateChange = this._onStateChange.event;
 
-  private readonly _onEvent = new vscode.EventEmitter<BuildlogEvent>();
-  readonly onEvent = this._onEvent.event;
+  private readonly _onStep = new vscode.EventEmitter<BuildlogStep>();
+  readonly onStep = this._onStep.event;
 
   constructor(options: RecordingSessionOptions) {
     super(() => this.dispose());
@@ -46,8 +59,6 @@ export class RecordingSession extends vscode.Disposable {
     this.sessionId = uuidv4();
     this.workspaceRoot = options.workspaceRoot;
     this.workspaceName = options.workspaceName;
-    this.fileWatcher = new FileWatcher();
-    this.stateSnapshot = new StateSnapshot(options.workspaceRoot);
   }
 
   /**
@@ -59,25 +70,12 @@ export class RecordingSession extends vscode.Disposable {
     }
 
     this.sessionId = uuidv4();
-    this.title = title || `Recording ${new Date().toLocaleString()}`;
+    this.title = title || `Workflow ${new Date().toLocaleDateString()}`;
     this.startTime = new Date();
-    this.events = [];
-
-    // Capture initial state
-    vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: 'Starting recording...',
-        cancellable: false,
-      },
-      async () => {
-        this.initialSnapshots = await this.stateSnapshot.captureSnapshot();
-        
-        // Initialize file watcher with current state
-        this.fileWatcher.initializeFromSnapshots(this.initialSnapshots);
-        this.fileWatcher.start(event => this.handleEvent(event));
-      }
-    );
+    this.steps = [];
+    this.sequenceCounter = 0;
+    this.filesCreated.clear();
+    this.filesModified.clear();
 
     this.setState('recording');
   }
@@ -85,44 +83,44 @@ export class RecordingSession extends vscode.Disposable {
   /**
    * Stop the recording and generate buildlog
    */
-  async stop(): Promise<BuildlogFile> {
+  async stop(outcome?: {
+    status: OutcomeStatus;
+    summary: string;
+  }): Promise<BuildlogFile> {
     if (this.state !== 'recording') {
       throw new Error('No recording in progress');
     }
 
-    this.fileWatcher.stop();
-    
     const endTime = new Date();
-    const finalSnapshots = await this.stateSnapshot.captureSnapshot();
+    const durationSeconds = Math.round((endTime.getTime() - this.startTime!.getTime()) / 1000);
 
-    // Count unique changed files
-    const changedFiles = new Set<string>();
-    for (const event of this.events) {
-      if (event.type === 'file_change' && 'filePath' in event.data) {
-        changedFiles.add((event.data as any).filePath);
-      }
-    }
+    // Check if buildlog is replicable (has prompts)
+    const hasPrompts = this.steps.some(s => s.type === 'prompt');
 
     const metadata: BuildlogMetadata = {
       id: this.sessionId,
       title: this.title,
-      startTime: this.startTime!.toISOString(),
-      endTime: endTime.toISOString(),
-      duration: endTime.getTime() - this.startTime!.getTime(),
-      workspaceName: this.workspaceName,
-      workspacePath: this.workspaceRoot,
-      filesChanged: changedFiles.size,
-      totalEvents: this.events.length,
+      createdAt: this.startTime!.toISOString(),
+      durationSeconds,
+      editor: detectEditor(),
+      aiProvider: detectAIProvider(),
+      replicable: hasPrompts,
+    };
+
+    const buildlogOutcome: BuildlogOutcome = {
+      status: outcome?.status || (hasPrompts ? 'success' : 'abandoned'),
+      summary: outcome?.summary || `Recorded ${this.steps.length} steps`,
+      filesCreated: this.filesCreated.size,
+      filesModified: this.filesModified.size,
+      canReplicate: hasPrompts,
     };
 
     const buildlog: BuildlogFile = {
-      version: '1.0.0',
+      version: BUILDLOG_VERSION as '2.0.0',
+      format: 'slim',
       metadata,
-      events: this.events,
-      snapshots: {
-        initial: this.initialSnapshots,
-        final: finalSnapshots,
-      },
+      steps: this.steps,
+      outcome: buildlogOutcome,
     };
 
     this.setState('idle');
@@ -132,83 +130,149 @@ export class RecordingSession extends vscode.Disposable {
   }
 
   /**
-   * Add a prompt event
+   * Add a prompt step (the primary artifact)
    */
-  addPrompt(content: string, model?: string): void {
-    if (this.state !== 'recording') {
-      return;
-    }
+  addPrompt(content: string, options?: {
+    context?: string[];
+    intent?: string;
+  }): void {
+    if (this.state !== 'recording') return;
 
-    const data: PromptEventData = {
-      type: 'prompt',
-      content,
-      model,
-    };
-
-    const event: BuildlogEvent = {
+    const step: PromptStep = {
       id: uuidv4(),
       type: 'prompt',
-      timestamp: new Date().toISOString(),
-      data,
-    };
-
-    this.handleEvent(event);
-  }
-
-  /**
-   * Add a response event
-   */
-  addResponse(content: string, model?: string): void {
-    if (this.state !== 'recording') {
-      return;
-    }
-
-    const data: ResponseEventData = {
-      type: 'response',
+      timestamp: this.getTimestamp(),
+      sequence: this.sequenceCounter++,
       content,
-      model,
+      context: options?.context,
+      intent: options?.intent,
     };
 
-    const event: BuildlogEvent = {
-      id: uuidv4(),
-      type: 'response',
-      timestamp: new Date().toISOString(),
-      data,
-    };
-
-    this.handleEvent(event);
+    this.addStep(step);
   }
 
   /**
-   * Add a note event
+   * Add an action step (what the AI did)
    */
-  addNote(content: string, tags?: string[]): void {
-    if (this.state !== 'recording') {
-      return;
-    }
+  addAction(summary: string, options?: {
+    filesCreated?: string[];
+    filesModified?: string[];
+    filesDeleted?: string[];
+    approach?: string;
+  }): void {
+    if (this.state !== 'recording') return;
 
-    const data: NoteEventData = {
+    // Track files for outcome
+    options?.filesCreated?.forEach(f => this.filesCreated.add(f));
+    options?.filesModified?.forEach(f => this.filesModified.add(f));
+
+    const step: ActionStep = {
+      id: uuidv4(),
+      type: 'action',
+      timestamp: this.getTimestamp(),
+      sequence: this.sequenceCounter++,
+      summary,
+      filesCreated: options?.filesCreated,
+      filesModified: options?.filesModified,
+      filesDeleted: options?.filesDeleted,
+      approach: options?.approach,
+    };
+
+    this.addStep(step);
+  }
+
+  /**
+   * Add a terminal step
+   */
+  addTerminal(command: string, outcome: TerminalOutcome, options?: {
+    summary?: string;
+    exitCode?: number;
+  }): void {
+    if (this.state !== 'recording') return;
+
+    const step: TerminalStep = {
+      id: uuidv4(),
+      type: 'terminal',
+      timestamp: this.getTimestamp(),
+      sequence: this.sequenceCounter++,
+      command,
+      outcome,
+      summary: options?.summary,
+      exitCode: options?.exitCode,
+    };
+
+    this.addStep(step);
+  }
+
+  /**
+   * Add a note step
+   */
+  addNote(content: string, category?: NoteCategory): void {
+    if (this.state !== 'recording') return;
+
+    const step: NoteStep = {
+      id: uuidv4(),
       type: 'note',
+      timestamp: this.getTimestamp(),
+      sequence: this.sequenceCounter++,
       content,
-      tags,
+      category,
     };
 
-    const event: BuildlogEvent = {
-      id: uuidv4(),
-      type: 'note',
-      timestamp: new Date().toISOString(),
-      data,
-    };
-
-    this.handleEvent(event);
+    this.addStep(step);
   }
 
   /**
-   * Handle an incoming event
+   * Add a checkpoint step
    */
-  private handleEvent(event: BuildlogEvent): void {
-    this.events.push(event);
-    this._onEvent.fire(event);
+  addCheckpoint(name: string, summary: string): void {
+    if (this.state !== 'recording') return;
+
+    const step: CheckpointStep = {
+      id: uuidv4(),
+      type: 'checkpoint',
+      timestamp: this.getTimestamp(),
+      sequence: this.sequenceCounter++,
+      name,
+      summary,
+    };
+
+    this.addStep(step);
+  }
+
+  /**
+   * Add an error step
+   */
+  addError(message: string, resolved: boolean = false, resolution?: string): void {
+    if (this.state !== 'recording') return;
+
+    const step: ErrorStep = {
+      id: uuidv4(),
+      type: 'error',
+      timestamp: this.getTimestamp(),
+      sequence: this.sequenceCounter++,
+      message,
+      resolved,
+      resolution,
+    };
+
+    this.addStep(step);
+  }
+
+  /**
+   * Add a step to the recording
+   */
+  private addStep(step: BuildlogStep): void {
+    this.steps.push(step);
+    this._onStep.fire(step);
+  }
+
+  /**
+   * Get timestamp in seconds since recording start
+   */
+  private getTimestamp(): number {
+    if (!this.startTime) return 0;
+    return Math.round((Date.now() - this.startTime.getTime()) / 1000);
   }
 
   /**
@@ -222,17 +286,22 @@ export class RecordingSession extends vscode.Disposable {
    * Get recording duration in milliseconds
    */
   getDuration(): number {
-    if (!this.startTime) {
-      return 0;
-    }
+    if (!this.startTime) return 0;
     return Date.now() - this.startTime.getTime();
   }
 
   /**
-   * Get the number of events recorded
+   * Get the number of steps recorded
    */
-  getEventCount(): number {
-    return this.events.length;
+  getStepCount(): number {
+    return this.steps.length;
+  }
+
+  /**
+   * Get the number of prompts recorded
+   */
+  getPromptCount(): number {
+    return this.steps.filter(s => s.type === 'prompt').length;
   }
 
   /**
@@ -240,6 +309,13 @@ export class RecordingSession extends vscode.Disposable {
    */
   getTitle(): string {
     return this.title;
+  }
+
+  /**
+   * Set session title
+   */
+  setTitle(title: string): void {
+    this.title = title;
   }
 
   /**
@@ -254,10 +330,12 @@ export class RecordingSession extends vscode.Disposable {
    * Reset the session
    */
   private reset(): void {
-    this.events = [];
-    this.initialSnapshots = [];
+    this.steps = [];
     this.startTime = undefined;
     this.title = '';
+    this.sequenceCounter = 0;
+    this.filesCreated.clear();
+    this.filesModified.clear();
   }
 
   /**
@@ -268,8 +346,7 @@ export class RecordingSession extends vscode.Disposable {
   }
 
   dispose(): void {
-    this.fileWatcher.dispose();
     this._onStateChange.dispose();
-    this._onEvent.dispose();
+    this._onStep.dispose();
   }
 }

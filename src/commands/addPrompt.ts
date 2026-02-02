@@ -4,6 +4,9 @@ import { showMultilineInput } from '../ui/MultilineInput';
 
 /**
  * Add an AI prompt to the recording
+ * 
+ * Prompts are the PRIMARY ARTIFACT in buildlog v2.
+ * The workflow is replicable because others can replay these prompts.
  */
 export async function addPrompt(session: RecordingSession): Promise<void> {
   if (!session.isRecording()) {
@@ -12,8 +15,8 @@ export async function addPrompt(session: RecordingSession): Promise<void> {
   }
 
   const content = await showMultilineInput({
-    title: 'Add AI Prompt',
-    placeholder: 'Paste the prompt you sent to the AI...',
+    title: '💬 Add AI Prompt',
+    placeholder: 'Paste the prompt you sent to the AI...\n\nThis is the primary artifact that makes your workflow replicable.',
     saveLabel: 'Add Prompt',
   });
 
@@ -21,14 +24,15 @@ export async function addPrompt(session: RecordingSession): Promise<void> {
     return;
   }
 
-  // Optionally ask for the model used
-  const model = await vscode.window.showInputBox({
-    prompt: 'Which AI model was used? (optional)',
-    placeHolder: 'e.g., GPT-4, Claude, Copilot',
-  });
+  // Optionally get active file as context
+  const activeEditor = vscode.window.activeTextEditor;
+  const context = activeEditor 
+    ? [vscode.workspace.asRelativePath(activeEditor.document.uri)] 
+    : undefined;
 
-  session.addPrompt(content, model || undefined);
+  session.addPrompt(content, { context });
   
+  const promptCount = session.getPromptCount();
   const preview = content.length > 50 ? content.substring(0, 50) + '...' : content;
-  vscode.window.showInformationMessage(`📝 Prompt added: "${preview}"`);
+  vscode.window.showInformationMessage(`💬 Prompt #${promptCount} added: "${preview}"`);
 }

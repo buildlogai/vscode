@@ -1,8 +1,8 @@
 {
   "name": "buildlog-recorder",
-  "displayName": "Buildlog - Record Your Builds",
-  "description": "The flight recorder for agent runs & vibe coding. Capture every prompt, every edit, every breakthrough. The portable container for AI-assisted builds.",
-  "version": "0.1.2",
+  "displayName": "Buildlog - Workflow Recipes",
+  "description": "Capture AI coding workflows as replicable recipes. Record prompts, actions, and decisions. Share reproducible workflows that others can follow.",
+  "version": "2.0.0",
   "publisher": "buildlog",
   "repository": {
     "type": "git",
@@ -16,10 +16,11 @@
   ],
   "keywords": [
     "buildlog",
-    "recording",
+    "workflow",
     "ai",
-    "coding",
-    "session"
+    "prompts",
+    "recipes",
+    "reproducible"
   ],
   "icon": "assets/buildlog-beaver-sm.png",
   "activationEvents": [
@@ -53,15 +54,15 @@
       },
       {
         "command": "buildlog.addPrompt",
-        "title": "Buildlog: Add AI Prompt"
+        "title": "Buildlog: Add AI Prompt 💬"
       },
       {
-        "command": "buildlog.addResponse",
-        "title": "Buildlog: Add AI Response"
+        "command": "buildlog.addAction",
+        "title": "Buildlog: Add Action ⚡"
       },
       {
         "command": "buildlog.addNote",
-        "title": "Buildlog: Add Note"
+        "title": "Buildlog: Add Note 📝"
       }
     ],
     "keybindings": [
@@ -84,7 +85,7 @@
         "when": "buildlog.isRecording"
       },
       {
-        "command": "buildlog.addResponse",
+        "command": "buildlog.addAction",
         "key": "ctrl+shift+2",
         "mac": "cmd+shift+2",
         "when": "buildlog.isRecording"
@@ -115,6 +116,7 @@
     "typescript": "^5.3.2"
   },
   "dependencies": {
+    "@buildlog/types": "^2.0.0",
     "diff": "^5.1.0"
   }
 }

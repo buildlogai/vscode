@@ -5,7 +5,7 @@ import {
   startRecording, 
   stopRecording, 
   addPrompt, 
-  addResponse, 
+  addAction,
   addNote 
 } from './commands';
 
@@ -14,9 +14,13 @@ let statusBar: StatusBar | undefined;
 
 /**
  * Extension activation
+ * 
+ * Buildlog v2: Slim workflow recorder
+ * Captures prompts (the artifact) and actions (what happened).
+ * No more file watching or state snapshots.
  */
 export function activate(context: vscode.ExtensionContext) {
-  console.log('Buildlog Recorder is now active');
+  console.log('Buildlog Recorder v2 is now active');
 
   // Get workspace info
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -45,9 +49,9 @@ export function activate(context: vscode.ExtensionContext) {
     );
   });
 
-  // Track events for logging
-  session.onEvent((event) => {
-    console.log(`Buildlog event: ${event.type}`, event.id);
+  // Track steps for logging
+  session.onStep((step) => {
+    console.log(`Buildlog step: ${step.type}`, step.id);
   });
 
   // Register commands
@@ -67,9 +71,9 @@ export function activate(context: vscode.ExtensionContext) {
         addPrompt(session);
       }
     }),
-    vscode.commands.registerCommand('buildlog.addResponse', () => {
+    vscode.commands.registerCommand('buildlog.addAction', () => {
       if (session) {
-        addResponse(session);
+        addAction(session);
       }
     }),
     vscode.commands.registerCommand('buildlog.addNote', () => {
