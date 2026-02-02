@@ -27,9 +27,17 @@ const GLOBAL_FEED_PATH = path.join(GLOBAL_FEED_DIR, 'agent-feed.jsonl');
 export class AgentFeedWatcher extends vscode.Disposable {
   private watcher: fs.FSWatcher | null = null;
   private pollInterval: NodeJS.Timeout | null = null;
+  private inactivityInterval: NodeJS.Timeout | null = null;
   private lastPosition: number = 0;
   private lastMtime: number = 0;
+  private lastEntryTime: number = 0;
+  private hasWarnedInactivity: boolean = false;
+  private entryCount: number = 0;
   private getSession: () => RecordingSession | undefined;
+  
+  // Event emitter for status updates
+  private _onStatusChange = new vscode.EventEmitter<{ entryCount: number; lastEntryTime: number }>();
+  public readonly onStatusChange = this._onStatusChange.event;
 
   constructor(getSession: () => RecordingSession | undefined) {
     super(() => this.dispose());
@@ -56,11 +64,19 @@ export class AgentFeedWatcher extends vscode.Disposable {
     fs.writeFileSync(GLOBAL_FEED_PATH, '');
     this.lastPosition = 0;
     this.lastMtime = 0;
+    this.lastEntryTime = Date.now();
+    this.hasWarnedInactivity = false;
+    this.entryCount = 0;
 
     // Use polling for reliability (fs.watch can be flaky on some systems)
     this.pollInterval = setInterval(() => {
       this.checkForChanges();
     }, 500); // Check every 500ms
+
+    // Check for inactivity every 2 minutes
+    this.inactivityInterval = setInterval(() => {
+      this.checkInactivity();
+    }, 120000); // 2 minutes
 
     // Also try fs.watch as a backup
     try {
@@ -78,6 +94,33 @@ export class AgentFeedWatcher extends vscode.Disposable {
     vscode.window.showInformationMessage(
       `🔴 Recording started. Agent feed: ~/.buildlog/agent-feed.jsonl`
     );
+  }
+
+  /**
+   * Check for inactivity and warn user
+   */
+  private checkInactivity(): void {
+    const session = this.getSession();
+    if (!session || session.getState() !== 'recording') {
+      return;
+    }
+
+    const timeSinceLastEntry = Date.now() - this.lastEntryTime;
+    const twoMinutes = 2 * 60 * 1000;
+
+    // Only warn once per session, and only if no entries have been logged
+    if (timeSinceLastEntry > twoMinutes && !this.hasWarnedInactivity && this.entryCount === 0) {
+      this.hasWarnedInactivity = true;
+      vscode.window.showWarningMessage(
+        '⚠️ Buildlog: No AI activity detected. Make sure your AI agent is logging to ~/.buildlog/agent-feed.jsonl',
+        'Show Instructions',
+        'Dismiss'
+      ).then(choice => {
+        if (choice === 'Show Instructions') {
+          vscode.env.openExternal(vscode.Uri.parse('https://buildlog.ai/docs/agent-integration'));
+        }
+      });
+    }
   }
 
   /**
@@ -103,10 +146,21 @@ export class AgentFeedWatcher extends vscode.Disposable {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
+    if (this.inactivityInterval) {
+      clearInterval(this.inactivityInterval);
+      this.inactivityInterval = null;
+    }
     if (this.watcher) {
       this.watcher.close();
       this.watcher = null;
     }
+  }
+
+  /**
+   * Get the current entry count
+   */
+  getEntryCount(): number {
+    return this.entryCount;
   }
 
   /**
@@ -131,6 +185,17 @@ export class AgentFeedWatcher extends vscode.Disposable {
         try {
           const entry = JSON.parse(line);
           this.addEntryToSession(session, entry);
+          
+          // Track entry for inactivity detection
+          this.entryCount++;
+          this.lastEntryTime = Date.now();
+          this.hasWarnedInactivity = false; // Reset warning flag on new entry
+          
+          // Emit status change
+          this._onStatusChange.fire({ 
+            entryCount: this.entryCount, 
+            lastEntryTime: this.lastEntryTime 
+          });
         } catch (e) {
           console.warn('Invalid agent feed line:', line);
         }

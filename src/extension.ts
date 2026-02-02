@@ -85,6 +85,13 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
+  // Connect agent feed status updates to status bar
+  if (agentFeedWatcher && statusBar) {
+    agentFeedWatcher.onStatusChange(({ entryCount }) => {
+      statusBar.setAgentEntryCount(entryCount);
+    });
+  }
+
   // Track steps for logging
   session.onStep((step) => {
     const preview = step.type === 'prompt' 

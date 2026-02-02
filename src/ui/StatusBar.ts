@@ -8,6 +8,7 @@ export class StatusBar implements vscode.Disposable {
   private statusBarItem: vscode.StatusBarItem;
   private session: RecordingSession;
   private updateInterval: NodeJS.Timeout | undefined;
+  private agentEntryCount: number = 0;
 
   constructor(session: RecordingSession) {
     this.session = session;
@@ -24,6 +25,16 @@ export class StatusBar implements vscode.Disposable {
     // Initial update
     this.updateDisplay(session.getState());
     this.statusBarItem.show();
+  }
+
+  /**
+   * Update agent entry count (called from extension when AgentFeedWatcher emits)
+   */
+  setAgentEntryCount(count: number): void {
+    this.agentEntryCount = count;
+    if (this.session.getState() === 'recording') {
+      this.updateRecordingDisplay();
+    }
   }
 
   /**
@@ -77,8 +88,15 @@ export class StatusBar implements vscode.Disposable {
     const stepCount = this.session.getStepCount();
     const promptCount = this.session.getPromptCount();
 
-    this.statusBarItem.text = `$(circle-filled) REC ${timeString}`;
-    this.statusBarItem.tooltip = `Recording: ${this.session.getTitle()}\n${stepCount} steps (${promptCount} prompts)\nClick to stop`;
+    // Show different status based on whether we've received agent entries
+    if (this.agentEntryCount === 0 && duration > 10000) {
+      // More than 10 seconds with no entries - show waiting indicator
+      this.statusBarItem.text = `$(circle-filled) REC ${timeString} $(sync~spin)`;
+      this.statusBarItem.tooltip = `Recording: ${this.session.getTitle()}\n⚠️ Waiting for AI agent activity...\n${stepCount} steps (${promptCount} prompts)\nClick to stop`;
+    } else {
+      this.statusBarItem.text = `$(circle-filled) REC ${timeString}`;
+      this.statusBarItem.tooltip = `Recording: ${this.session.getTitle()}\n${stepCount} steps (${promptCount} prompts)\nClick to stop`;
+    }
     this.statusBarItem.command = 'buildlog.stopRecording';
     this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
   }
