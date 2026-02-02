@@ -43,11 +43,8 @@ export function activate(context: vscode.ExtensionContext) {
   // Create status bar
   statusBar = new StatusBar(session);
 
-  // Create agent feed watcher
-  agentFeedWatcher = new AgentFeedWatcher(
-    workspaceFolder.uri.fsPath,
-    () => session
-  );
+  // Create agent feed watcher (uses global ~/.buildlog/agent-feed.jsonl)
+  agentFeedWatcher = new AgentFeedWatcher(() => session);
 
   // Update context for keybinding conditions and start/stop agent feed
   session.onStateChange(async (state) => {
@@ -60,9 +57,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Start/stop agent feed watcher with recording
     if (state === 'recording' && agentFeedWatcher) {
       await agentFeedWatcher.start();
-      vscode.window.showInformationMessage(
-        `🔴 Recording started. Agent feed: .buildlog/agent-feed.jsonl`
-      );
+      // Message is shown in AgentFeedWatcher.start()
     } else if (state === 'idle' && agentFeedWatcher) {
       agentFeedWatcher.stop();
     }

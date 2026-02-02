@@ -1,13 +1,21 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { RecordingSession } from '../recorder';
+
+/**
+ * Global Agent Feed Path
+ * Uses a fixed location in user's home directory so agents can always find it
+ */
+const GLOBAL_FEED_DIR = path.join(os.homedir(), '.buildlog');
+const GLOBAL_FEED_PATH = path.join(GLOBAL_FEED_DIR, 'agent-feed.jsonl');
 
 /**
  * Agent Feed Watcher
  * 
- * Watches a JSONL file (.buildlog/agent-feed.jsonl) for entries
- * appended by AI agents (like Copilot Agent mode).
+ * Watches ~/.buildlog/agent-feed.jsonl for entries appended by AI agents.
+ * Uses a GLOBAL location (not workspace-specific) so agents always know where to write.
  * 
  * Agents can append lines like:
  * {"type":"prompt","content":"Build a CTA component"}
@@ -18,56 +26,87 @@ import { RecordingSession } from '../recorder';
  */
 export class AgentFeedWatcher extends vscode.Disposable {
   private watcher: fs.FSWatcher | null = null;
-  private feedPath: string;
+  private pollInterval: NodeJS.Timeout | null = null;
   private lastPosition: number = 0;
+  private lastMtime: number = 0;
   private getSession: () => RecordingSession | undefined;
 
-  constructor(workspaceRoot: string, getSession: () => RecordingSession | undefined) {
+  constructor(getSession: () => RecordingSession | undefined) {
     super(() => this.dispose());
-    
-    this.feedPath = path.join(workspaceRoot, '.buildlog', 'agent-feed.jsonl');
     this.getSession = getSession;
+  }
+
+  /**
+   * Get the global feed path (for display to user)
+   */
+  static getFeedPath(): string {
+    return GLOBAL_FEED_PATH;
   }
 
   /**
    * Start watching the agent feed file
    */
   async start(): Promise<void> {
-    // Ensure .buildlog directory exists
-    const dir = path.dirname(this.feedPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    // Ensure ~/.buildlog directory exists
+    if (!fs.existsSync(GLOBAL_FEED_DIR)) {
+      fs.mkdirSync(GLOBAL_FEED_DIR, { recursive: true });
     }
 
     // Create or clear the feed file
-    fs.writeFileSync(this.feedPath, '');
+    fs.writeFileSync(GLOBAL_FEED_PATH, '');
     this.lastPosition = 0;
+    this.lastMtime = 0;
 
-    // Watch for changes
-    this.watcher = fs.watch(this.feedPath, (eventType) => {
-      if (eventType === 'change') {
+    // Use polling for reliability (fs.watch can be flaky on some systems)
+    this.pollInterval = setInterval(() => {
+      this.checkForChanges();
+    }, 500); // Check every 500ms
+
+    // Also try fs.watch as a backup
+    try {
+      this.watcher = fs.watch(GLOBAL_FEED_PATH, (eventType) => {
+        if (eventType === 'change') {
+          this.processNewLines();
+        }
+      });
+    } catch (e) {
+      // fs.watch may fail on some systems, polling is the backup
+      console.log('fs.watch not available, using polling only');
+    }
+
+    console.log(`Agent feed watcher started: ${GLOBAL_FEED_PATH}`);
+    vscode.window.showInformationMessage(
+      `🔴 Recording started. Agent feed: ~/.buildlog/agent-feed.jsonl`
+    );
+  }
+
+  /**
+   * Check for changes via polling (more reliable than fs.watch)
+   */
+  private checkForChanges(): void {
+    try {
+      const stats = fs.statSync(GLOBAL_FEED_PATH);
+      if (stats.mtimeMs > this.lastMtime) {
+        this.lastMtime = stats.mtimeMs;
         this.processNewLines();
       }
-    });
-
-    console.log(`Agent feed watcher started: ${this.feedPath}`);
+    } catch (e) {
+      // File may not exist yet
+    }
   }
 
   /**
    * Stop watching
    */
   stop(): void {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
     if (this.watcher) {
       this.watcher.close();
       this.watcher = null;
     }
-  }
-
-  /**
-   * Get the feed file path (for agents to know where to write)
-   */
-  getFeedPath(): string {
-    return this.feedPath;
   }
 
   /**
@@ -80,7 +119,7 @@ export class AgentFeedWatcher extends vscode.Disposable {
     }
 
     try {
-      const content = fs.readFileSync(this.feedPath, 'utf8');
+      const content = fs.readFileSync(GLOBAL_FEED_PATH, 'utf8');
       const newContent = content.substring(this.lastPosition);
       this.lastPosition = content.length;
 
