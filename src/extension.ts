@@ -3,17 +3,20 @@ import { RecordingSession } from './recorder';
 import { StatusBar } from './ui';
 import { registerChatParticipant } from './chat';
 import { AgentFeedWatcher } from './agent';
+import { FileChangeWatcher } from './watcher';
 import { 
   startRecording, 
   stopRecording, 
   addPrompt, 
   addAction,
-  addNote 
+  addNote,
+  showStatus 
 } from './commands';
 
 let session: RecordingSession | undefined;
 let statusBar: StatusBar | undefined;
 let agentFeedWatcher: AgentFeedWatcher | undefined;
+let fileWatcher: FileChangeWatcher | undefined;
 
 /**
  * Extension activation
@@ -46,8 +49,12 @@ export function activate(context: vscode.ExtensionContext) {
   // Create agent feed watcher (uses global ~/.buildlog/agent-feed.jsonl)
   agentFeedWatcher = new AgentFeedWatcher(() => session);
 
+  // Create file change watcher for automatic capture
+  fileWatcher = new FileChangeWatcher(() => session);
+
   // Update context for keybinding conditions and start/stop agent feed
   session.onStateChange(async (state) => {
+    console.log(`[Buildlog] 🔄 State changed: ${state}`);
     vscode.commands.executeCommand(
       'setContext', 
       'buildlog.isRecording', 
@@ -56,16 +63,34 @@ export function activate(context: vscode.ExtensionContext) {
     
     // Start/stop agent feed watcher with recording
     if (state === 'recording' && agentFeedWatcher) {
+      console.log('[Buildlog] 🎬 Starting agent feed watcher...');
       await agentFeedWatcher.start();
       // Message is shown in AgentFeedWatcher.start()
     } else if (state === 'idle' && agentFeedWatcher) {
+      console.log('[Buildlog] ⏹️  Stopping agent feed watcher...');
       agentFeedWatcher.stop();
+    }
+
+    // Start/stop file watcher with recording
+    if (state === 'recording' && fileWatcher) {
+      console.log('[Buildlog] 🎬 Starting file watcher...');
+      await fileWatcher.start();
+    } else if (state === 'idle' && fileWatcher) {
+      console.log('[Buildlog] ⏹️  Stopping file watcher...');
+      fileWatcher.stop();
     }
   });
 
   // Track steps for logging
   session.onStep((step) => {
-    console.log(`Buildlog step: ${step.type}`, step.id);
+    const preview = step.type === 'prompt' 
+      ? step.content?.substring(0, 50) 
+      : step.type === 'action' 
+      ? step.summary?.substring(0, 50)
+      : step.type === 'note'
+      ? step.content?.substring(0, 50)
+      : '';
+    console.log(`[Buildlog] ✅ Step #${step.sequence} added: ${step.type.toUpperCase()} - ${preview}${preview.length === 50 ? '...' : ''}`);
   });
 
   // Register commands
@@ -95,9 +120,14 @@ export function activate(context: vscode.ExtensionContext) {
         addNote(session);
       }
     }),
+    vscode.commands.registerCommand('buildlog.showStatus', () => {
+      if (session) {
+        showStatus(session);
+      }
+    }),
   ];
 
-  // Register chat participant for auto-capture
+  // Register chat participant for @buildlog prefix
   registerChatParticipant(context, () => session);
 
   // Add disposables to context
@@ -105,6 +135,7 @@ export function activate(context: vscode.ExtensionContext) {
     session,
     statusBar,
     agentFeedWatcher,
+    fileWatcher,
     ...commands
   );
 

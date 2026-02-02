@@ -11,7 +11,8 @@ const buildOptions = {
   platform: 'node',
   target: 'node18',
   sourcemap: true,
-  minify: !isWatch,
+  minify: false, // Keep console.log for debugging
+  keepNames: true, // Preserve function names for better stack traces
 };
 
 async function build() {

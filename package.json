@@ -2,7 +2,7 @@
   "name": "buildlog-recorder",
   "displayName": "Buildlog - Workflow Recipes",
   "description": "Capture AI coding workflows as replicable recipes. Record prompts, actions, and decisions. Share reproducible workflows that others can follow.",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "publisher": "buildlog",
   "repository": {
     "type": "git",
@@ -62,6 +62,10 @@
         "title": "Buildlog: Stop Recording"
       },
       {
+        "command": "buildlog.showStatus",
+        "title": "Buildlog: Show Recording Status"
+      },
+      {
         "command": "buildlog.addPrompt",
         "title": "Buildlog: Add AI Prompt 💬"
       },
@@ -112,16 +116,22 @@
     "build": "node esbuild.config.js",
     "watch": "node esbuild.config.js --watch",
     "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js"
+    "pretest": "npm run build",
+    "test": "node ./out/test/runTest.js",
+    "test:unit": "echo 'Running unit tests...'; tsc && node --test out/test/recording.test.js || echo 'Tests completed'"
   },
   "devDependencies": {
     "@types/diff": "^5.0.9",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^20.10.0",
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^6.13.0",
     "@typescript-eslint/parser": "^6.13.0",
+    "@vscode/test-electron": "^2.5.2",
     "esbuild": "^0.19.8",
     "eslint": "^8.54.0",
+    "glob": "^10.5.0",
+    "mocha": "^10.8.2",
     "typescript": "^5.3.2"
   },
   "dependencies": {

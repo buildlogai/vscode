@@ -144,6 +144,7 @@ export class AgentFeedWatcher extends vscode.Disposable {
    * Add an entry from the agent feed to the recording session
    */
   private addEntryToSession(session: RecordingSession, entry: AgentFeedEntry): void {
+    console.log(`[Agent Feed] 📡 Processing entry: ${entry.type}`);
     switch (entry.type) {
       case 'prompt':
         session.addPrompt(entry.content, {
@@ -154,7 +155,8 @@ export class AgentFeedWatcher extends vscode.Disposable {
         break;
 
       case 'action':
-        session.addAction(entry.summary, {
+        const actionSummary = entry.summary || entry.content || 'Action performed';
+        session.addAction(actionSummary, {
           filesCreated: entry.filesCreated,
           filesModified: entry.filesModified,
           filesDeleted: entry.filesDeleted,
@@ -164,7 +166,7 @@ export class AgentFeedWatcher extends vscode.Disposable {
         break;
 
       case 'note':
-        session.addNote(entry.content, entry.category);
+        session.addNote(entry.content, entry.category as any);
         console.log('Agent feed: Added note');
         break;
 
@@ -203,7 +205,8 @@ interface AgentFeedPrompt {
 
 interface AgentFeedAction {
   type: 'action';
-  summary: string;
+  summary?: string;
+  content?: string; // Fallback for summary (backward compat)
   filesCreated?: string[];
   filesModified?: string[];
   filesDeleted?: string[];

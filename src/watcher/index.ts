@@ -1,0 +1,1 @@
+export { FileChangeWatcher } from './FileChangeWatcher';

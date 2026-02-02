@@ -136,7 +136,10 @@ export class RecordingSession extends vscode.Disposable {
     context?: string[];
     intent?: string;
   }): void {
-    if (this.state !== 'recording') return;
+    if (this.state !== 'recording') {
+      console.log('[Buildlog] ⚠️  Skipped prompt - not recording');
+      return;
+    }
 
     const step: PromptStep = {
       id: uuidv4(),
@@ -148,6 +151,7 @@ export class RecordingSession extends vscode.Disposable {
       intent: options?.intent,
     };
 
+    console.log(`[Buildlog] ✅ Added PROMPT (#${step.sequence}): ${content.substring(0, 60)}${content.length > 60 ? '...' : ''}`);
     this.addStep(step);
   }
 
@@ -160,7 +164,10 @@ export class RecordingSession extends vscode.Disposable {
     filesDeleted?: string[];
     approach?: string;
   }): void {
-    if (this.state !== 'recording') return;
+    if (this.state !== 'recording') {
+      console.log('[Buildlog] ⚠️  Skipped action - not recording');
+      return;
+    }
 
     // Track files for outcome
     options?.filesCreated?.forEach(f => this.filesCreated.add(f));
@@ -178,6 +185,8 @@ export class RecordingSession extends vscode.Disposable {
       approach: options?.approach,
     };
 
+    const filesInfo = options?.filesModified?.length ? ` [${options.filesModified.join(', ')}]` : '';
+    console.log(`[Buildlog] ✅ Added ACTION (#${step.sequence}): ${summary}${filesInfo}`);
     this.addStep(step);
   }
 
@@ -208,7 +217,10 @@ export class RecordingSession extends vscode.Disposable {
    * Add a note step
    */
   addNote(content: string, category?: NoteCategory): void {
-    if (this.state !== 'recording') return;
+    if (this.state !== 'recording') {
+      console.log('[Buildlog] ⚠️  Skipped note - not recording');
+      return;
+    }
 
     const step: NoteStep = {
       id: uuidv4(),
@@ -219,6 +231,7 @@ export class RecordingSession extends vscode.Disposable {
       category,
     };
 
+    console.log(`[Buildlog] 📝 Added NOTE (#${step.sequence}): ${content.substring(0, 60)}${content.length > 60 ? '...' : ''}`);
     this.addStep(step);
   }
 
@@ -343,6 +356,26 @@ export class RecordingSession extends vscode.Disposable {
    */
   isRecording(): boolean {
     return this.state === 'recording';
+  }
+
+  /**
+   * Get recording statistics
+   */
+  getStats() {
+    const prompts = this.steps.filter(s => s.type === 'prompt').length;
+    const actions = this.steps.filter(s => s.type === 'action').length;
+    const notes = this.steps.filter(s => s.type === 'note').length;
+    const others = this.steps.length - prompts - actions - notes;
+
+    return {
+      totalSteps: this.steps.length,
+      prompts,
+      actions,
+      notes,
+      others,
+      filesCreated: this.filesCreated.size,
+      filesModified: this.filesModified.size,
+    };
   }
 
   dispose(): void {
