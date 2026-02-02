@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { RecordingSession } from './recorder';
 import { StatusBar } from './ui';
 import { registerChatParticipant } from './chat';
+import { AgentFeedWatcher } from './agent';
 import { 
   startRecording, 
   stopRecording, 
@@ -12,6 +13,7 @@ import {
 
 let session: RecordingSession | undefined;
 let statusBar: StatusBar | undefined;
+let agentFeedWatcher: AgentFeedWatcher | undefined;
 
 /**
  * Extension activation
@@ -41,13 +43,29 @@ export function activate(context: vscode.ExtensionContext) {
   // Create status bar
   statusBar = new StatusBar(session);
 
-  // Update context for keybinding conditions
-  session.onStateChange((state) => {
+  // Create agent feed watcher
+  agentFeedWatcher = new AgentFeedWatcher(
+    workspaceFolder.uri.fsPath,
+    () => session
+  );
+
+  // Update context for keybinding conditions and start/stop agent feed
+  session.onStateChange(async (state) => {
     vscode.commands.executeCommand(
       'setContext', 
       'buildlog.isRecording', 
       state === 'recording'
     );
+    
+    // Start/stop agent feed watcher with recording
+    if (state === 'recording' && agentFeedWatcher) {
+      await agentFeedWatcher.start();
+      vscode.window.showInformationMessage(
+        `🔴 Recording started. Agent feed: .buildlog/agent-feed.jsonl`
+      );
+    } else if (state === 'idle' && agentFeedWatcher) {
+      agentFeedWatcher.stop();
+    }
   });
 
   // Track steps for logging
@@ -91,6 +109,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     session,
     statusBar,
+    agentFeedWatcher,
     ...commands
   );
 
