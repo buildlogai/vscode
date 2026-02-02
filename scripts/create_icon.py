@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+import base64
+import os
+
+# A simple 128x128 red circle PNG icon
+png_base64 = """
+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
+"""
+
+# Get the script directory and construct path to assets
+script_dir = os.path.dirname(os.path.abspath(__file__))
+assets_dir = os.path.join(script_dir, '..', 'assets')
+icon_path = os.path.join(assets_dir, 'icon.png')
+
+# Decode and write the PNG
+png_data = base64.b64decode(png_base64.replace('\n', ''))
+with open(icon_path, 'wb') as f:
+    f.write(png_data)
+
+print(f'Icon created at: {icon_path}')

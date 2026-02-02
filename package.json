@@ -1,0 +1,120 @@
+{
+  "name": "buildlog-recorder",
+  "displayName": "Buildlog - Record Your Builds",
+  "description": "Capture AI-assisted coding sessions and export them as .buildlog files",
+  "version": "0.1.0",
+  "publisher": "buildlog",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/buildlog/vscode"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "buildlog",
+    "recording",
+    "ai",
+    "coding",
+    "session"
+  ],
+  "icon": "assets/icon.png",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Buildlog Recorder",
+      "properties": {
+        "buildlog.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for uploading buildlogs to buildlog.dev"
+        },
+        "buildlog.outputDirectory": {
+          "type": "string",
+          "default": ".buildlog",
+          "description": "Directory where buildlog files are saved"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "buildlog.startRecording",
+        "title": "Buildlog: Start Recording"
+      },
+      {
+        "command": "buildlog.stopRecording",
+        "title": "Buildlog: Stop Recording"
+      },
+      {
+        "command": "buildlog.addPrompt",
+        "title": "Buildlog: Add AI Prompt"
+      },
+      {
+        "command": "buildlog.addResponse",
+        "title": "Buildlog: Add AI Response"
+      },
+      {
+        "command": "buildlog.addNote",
+        "title": "Buildlog: Add Note"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "buildlog.startRecording",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "!buildlog.isRecording"
+      },
+      {
+        "command": "buildlog.stopRecording",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "buildlog.isRecording"
+      },
+      {
+        "command": "buildlog.addPrompt",
+        "key": "ctrl+shift+1",
+        "mac": "cmd+shift+1",
+        "when": "buildlog.isRecording"
+      },
+      {
+        "command": "buildlog.addResponse",
+        "key": "ctrl+shift+2",
+        "mac": "cmd+shift+2",
+        "when": "buildlog.isRecording"
+      },
+      {
+        "command": "buildlog.addNote",
+        "key": "ctrl+shift+n",
+        "mac": "cmd+shift+n",
+        "when": "buildlog.isRecording"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.config.js",
+    "watch": "node esbuild.config.js --watch",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/diff": "^5.0.9",
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "esbuild": "^0.19.8",
+    "eslint": "^8.54.0",
+    "typescript": "^5.3.2"
+  },
+  "dependencies": {
+    "diff": "^5.1.0"
+  }
+}
