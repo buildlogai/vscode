@@ -21,21 +21,30 @@ export class FileChangeWatcher extends vscode.Disposable {
    * Start watching for file changes
    */
   async start(): Promise<void> {
+    console.log('[Buildlog FileWatcher] 🚀 START() CALLED');
+    
     const session = this.getSession();
-    if (!session) return;
+    if (!session) {
+      console.log('[Buildlog FileWatcher] ❌ No session available');
+      return;
+    }
 
     // Watch all files in workspace
     this.watcher = vscode.workspace.createFileSystemWatcher('**/*');
+    console.log('[Buildlog FileWatcher] ✅ Created file system watcher for **/*');
 
     this.watcher.onDidChange((uri) => {
+      console.log('[Buildlog FileWatcher] 🔄 onDidChange:', uri.fsPath);
       this.handleFileChange(uri, 'modified');
     });
 
     this.watcher.onDidCreate((uri) => {
+      console.log('[Buildlog FileWatcher] ➕ onDidCreate:', uri.fsPath);
       this.handleFileChange(uri, 'created');
     });
 
     this.watcher.onDidDelete((uri) => {
+      console.log('[Buildlog FileWatcher] ➖ onDidDelete:', uri.fsPath);
       this.handleFileChange(uri, 'deleted');
     });
 

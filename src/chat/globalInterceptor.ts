@@ -4,16 +4,44 @@ import { RecordingSession } from '../recorder';
 /**
  * Global Chat Interceptor
  * 
- * Listens to ALL Copilot Chat activity (not just @buildlog) and automatically
- * captures prompts and responses when recording is active.
+ * NOTE: As of VS Code 1.85+, there is no public API to intercept Copilot Chat
+ * prompts automatically. The vscode.lm API only provides:
+ * - selectChatModels() - to request access to models
+ * - sendRequest() - to send requests FROM extensions
+ * - onDidChangeChatModels - when available models change
  * 
- * This is the "it just works" mode - no need to use @buildlog prefix.
+ * There are NO events for intercepting user prompts to Copilot.
+ * 
+ * Workarounds for prompt capture:
+ * 1. Use @buildlog prefix in chat (triggers our chat participant)
+ * 2. Manually add prompts via "Buildlog: Add Prompt" command
+ * 3. Have AI agents write to ~/.buildlog/agent-feed.jsonl
  */
 export function registerGlobalChatInterceptor(
   context: vscode.ExtensionContext,
   getSession: () => RecordingSession | undefined
 ) {
-  console.log('[Buildlog] 🎧 Registering global chat interceptor...');
+  console.log('[Buildlog] 🎧 Global chat interceptor: checking API availability...');
+
+  // Check if the lm API exists
+  if (!vscode.lm) {
+    console.log('[Buildlog] ⚠️ vscode.lm API not available');
+    return;
+  }
+
+  // Check for the specific event APIs (these don't exist in public API as of VS Code 1.95)
+  const lmAny = vscode.lm as any;
+  if (!lmAny.onDidSendChatModelRequest) {
+    console.log('[Buildlog] ℹ️ No automatic prompt interception available (expected)');
+    console.log('[Buildlog] 💡 To capture prompts, use one of:');
+    console.log('[Buildlog]    • @buildlog prefix in Copilot Chat');
+    console.log('[Buildlog]    • "Buildlog: Add Prompt" command (Cmd+Shift+P)');
+    console.log('[Buildlog]    • Agent feed: ~/.buildlog/agent-feed.jsonl');
+    return;
+  }
+
+  // If we somehow have the events (future VS Code version?), use them
+  console.log('[Buildlog] ✨ Prompt interception API available! Registering...');
 
   // Track the last chat request so we can capture responses
   let lastChatRequest: {
@@ -21,8 +49,9 @@ export function registerGlobalChatInterceptor(
     timestamp: number;
   } | undefined;
 
-  // Listen to chat model requests
-  const requestListener = vscode.lm.onDidSendChatModelRequest((event) => {
+  try {
+    // Listen to chat model requests
+    const requestListener = vscode.lm.onDidSendChatModelRequest((event) => {
     const session = getSession();
     if (!session || session.getState() !== 'recording') {
       return;
@@ -94,9 +123,12 @@ export function registerGlobalChatInterceptor(
     lastChatRequest = undefined;
   });
 
-  context.subscriptions.push(requestListener, responseListener);
-  
-  console.log('[Buildlog] ✅ Global chat interceptor registered');
+    context.subscriptions.push(requestListener, responseListener);
+    console.log('[Buildlog] ✅ Global chat interceptor registered');
+  } catch (error) {
+    console.log('[Buildlog] ⚠️ Failed to register global chat interceptor:', error);
+    console.log('[Buildlog] 💡 Use @buildlog prefix or manual prompt entry instead');
+  }
 }
 
 /**

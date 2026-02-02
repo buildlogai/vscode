@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { RecordingSession } from './recorder';
 import { StatusBar } from './ui';
-import { registerChatParticipant } from './chat';
+import { registerChatParticipant, registerGlobalChatInterceptor } from './chat';
 import { AgentFeedWatcher } from './agent';
 import { FileChangeWatcher } from './watcher';
 import { 
@@ -26,7 +26,10 @@ let fileWatcher: FileChangeWatcher | undefined;
  * No more file watching or state snapshots.
  */
 export function activate(context: vscode.ExtensionContext) {
-  console.log('Buildlog Recorder v2 is now active');
+  console.log('='.repeat(60));
+  console.log('🎬 BUILDLOG EXTENSION ACTIVATED - v2.4.0');
+  console.log('='.repeat(60));
+  console.log('[Buildlog] Timestamp:', new Date().toISOString());
 
   // Get workspace info
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -54,7 +57,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Update context for keybinding conditions and start/stop agent feed
   session.onStateChange(async (state) => {
-    console.log(`[Buildlog] 🔄 State changed: ${state}`);
+    console.log('========== STATE CHANGE:', state, '==========');
     vscode.commands.executeCommand(
       'setContext', 
       'buildlog.isRecording', 
@@ -73,10 +76,11 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Start/stop file watcher with recording
     if (state === 'recording' && fileWatcher) {
-      console.log('[Buildlog] 🎬 Starting file watcher...');
+      console.log('>>>>>> STARTING FILE WATCHER <<<<<<');
       await fileWatcher.start();
+      console.log('>>>>>> FILE WATCHER STARTED <<<<<<');
     } else if (state === 'idle' && fileWatcher) {
-      console.log('[Buildlog] ⏹️  Stopping file watcher...');
+      console.log('>>>>>> STOPPING FILE WATCHER <<<<<<');
       fileWatcher.stop();
     }
   });
@@ -129,6 +133,9 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Register chat participant for @buildlog prefix
   registerChatParticipant(context, () => session);
+
+  // Register global chat interceptor to capture ALL Copilot Chat prompts
+  registerGlobalChatInterceptor(context, () => session);
 
   // Add disposables to context
   context.subscriptions.push(

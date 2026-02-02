@@ -147,11 +147,17 @@ export class AgentFeedWatcher extends vscode.Disposable {
     console.log(`[Agent Feed] 📡 Processing entry: ${entry.type}`);
     switch (entry.type) {
       case 'prompt':
-        session.addPrompt(entry.content, {
+        // If raw is provided, use it as the full prompt content
+        // Use content as the intent/summary
+        // If only content is provided (no raw), use content as the full prompt
+        const fullPrompt = entry.raw || entry.content;
+        const promptIntent = entry.raw ? entry.content : entry.intent;
+        
+        session.addPrompt(fullPrompt, {
           context: entry.context,
-          intent: entry.intent,
+          intent: promptIntent,
         });
-        console.log('Agent feed: Added prompt');
+        console.log('Agent feed: Added prompt' + (entry.raw ? ' (with raw)' : ''));
         break;
 
       case 'action':
@@ -198,7 +204,8 @@ export class AgentFeedWatcher extends vscode.Disposable {
  */
 interface AgentFeedPrompt {
   type: 'prompt';
-  content: string;
+  content: string;           // Summary of the prompt (always required)
+  raw?: string;              // Exact user prompt (up to 2000 chars)
   context?: string[];
   intent?: string;
 }
