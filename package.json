@@ -2,7 +2,7 @@
   "name": "buildlog-recorder",
   "displayName": "Buildlog - Record Your Builds",
   "description": "Capture AI-assisted coding sessions and export them as .buildlog files",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "buildlog",
   "repository": {
     "type": "git",
