@@ -1,7 +1,7 @@
 {
   "name": "buildlog-recorder",
   "displayName": "Buildlog - Record Your Builds",
-  "description": "Capture AI-assisted coding sessions and export them as .buildlog files",
+  "description": "The flight recorder for agent runs & vibe coding. Capture every prompt, every edit, every breakthrough. The portable container for AI-assisted builds.",
   "version": "0.1.1",
   "publisher": "buildlog",
   "repository": {
