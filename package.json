@@ -21,7 +21,7 @@
     "coding",
     "session"
   ],
-  "icon": "assets/icon.png",
+  "icon": "assets/buildlog-beaver-sm.png",
   "activationEvents": [
     "onStartupFinished"
   ],
