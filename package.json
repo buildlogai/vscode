@@ -2,7 +2,7 @@
   "name": "buildlog-recorder",
   "displayName": "Buildlog - Workflow Recipes",
   "description": "Capture AI coding workflows as replicable recipes. Record prompts, actions, and decisions. Share reproducible workflows that others can follow.",
-  "version": "2.4.6",
+  "version": "2.4.7",
   "publisher": "buildlog",
   "repository": {
     "type": "git",
