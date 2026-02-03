@@ -12,7 +12,7 @@ const COPILOT_INSTRUCTIONS = `# Copilot Instructions for Buildlog
 You MUST run this at the END of EVERY response where you make changes:
 
 \`\`\`bash
-echo '{"type":"prompt","content":"<what user asked>"}' >> ~/.buildlog/agent-feed.jsonl
+echo '{"type":"prompt","raw":"<EXACT user prompt text>","content":"<short title>"}' >> ~/.buildlog/agent-feed.jsonl
 echo '{"type":"action","summary":"<what you did>","filesModified":["file1.ts"]}' >> ~/.buildlog/agent-feed.jsonl
 \`\`\`
 
@@ -20,17 +20,19 @@ echo '{"type":"action","summary":"<what you did>","filesModified":["file1.ts"]}'
 
 ## Quick Reference
 
-- \`type: "prompt"\` - Log the user's request (summarize in \`content\`)
+- \`type: "prompt"\` - Log the user's request
+  - \`raw\`: **REQUIRED** - The exact, complete user prompt (up to 2000 chars)
+  - \`content\`: A short title/summary (3-10 words) for display
 - \`type: "action"\` - Log what you did (include \`filesModified\` array)
 - \`type: "note"\` - Optional observations or decisions
 
 ## Example
 
-User: "Add a login button to the header"
+User: "Add a login button to the header component. It should use our existing auth context and redirect to /dashboard after login."
 
 After making changes, run:
 \`\`\`bash
-echo '{"type":"prompt","content":"Add login button to header"}' >> ~/.buildlog/agent-feed.jsonl
+echo '{"type":"prompt","raw":"Add a login button to the header component. It should use our existing auth context and redirect to /dashboard after login.","content":"Add login button to header"}' >> ~/.buildlog/agent-feed.jsonl
 echo '{"type":"action","summary":"Added LoginButton component to Header with auth integration","filesModified":["components/Header.tsx","components/LoginButton.tsx"]}' >> ~/.buildlog/agent-feed.jsonl
 \`\`\`
 

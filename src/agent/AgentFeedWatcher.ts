@@ -269,10 +269,10 @@ export class AgentFeedWatcher extends vscode.Disposable {
  */
 interface AgentFeedPrompt {
   type: 'prompt';
-  content: string;           // Summary of the prompt (always required)
-  raw?: string;              // Exact user prompt (up to 2000 chars)
+  content: string;           // Short title/summary for display (always required)
+  raw?: string;              // PREFERRED: Full original user prompt (up to 2000 chars) - this is the primary artifact
   context?: string[];
-  intent?: string;
+  intent?: string;           // Legacy: same as content, for backward compat
 }
 
 interface AgentFeedAction {

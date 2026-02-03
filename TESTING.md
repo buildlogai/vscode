@@ -149,9 +149,11 @@ If using skills.sh or other agents:
    
    Should contain JSONL entries like:
    ```json
-   {"type":"prompt","content":"Create a button"}
-   {"type":"action","summary":"Created Button.tsx"}
+   {"type":"prompt","raw":"Create a button component with primary and secondary variants","content":"Create button component"}
+   {"type":"action","summary":"Created Button.tsx with variant props"}
    ```
+   
+   Note: `raw` contains the full original prompt (primary artifact), `content` is the short title for display.
 
 2. **Watch for processing**
    Console should show:
@@ -163,7 +165,7 @@ If using skills.sh or other agents:
 3. **Test manually**
    While recording:
    ```bash
-   echo '{"type":"prompt","content":"Test prompt"}' >> ~/.buildlog/agent-feed.jsonl
+   echo '{"type":"prompt","raw":"Add a test button to the page","content":"Add test button"}' >> ~/.buildlog/agent-feed.jsonl
    ```
    
    Should appear in console logs within 500ms.
