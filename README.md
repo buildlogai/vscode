@@ -5,8 +5,6 @@
 
 Capture AI-assisted coding sessions and export them as `.buildlog` files. Document your development process, track file changes, and record AI prompts and responses for sharing, learning, or documentation.
 
-![Buildlog Recording Demo](assets/demo.gif)
-
 ## Features
 
 - 🔴 **Session Recording** — Start/stop recording with a single keystroke
